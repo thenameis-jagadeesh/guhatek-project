@@ -7,16 +7,16 @@ let dropdownOptions = {};
 
 // Desired field order for candidate management UI
 const FIELD_ORDER = [
-    'Candidate', 'Name', 'Email ID', 'Contact Number', 'Interested Position', 'Current Role',
+    'Date', 'Name', 'Email ID', 'Contact Number', 'Interested Position', 'Current Role',
     'Current Organization', 'Current Location', 'Current CTC per Annum',
     'Expected CTC per Annum', 'Total Years of Experience', 'Notice Period',
-    'Interview Status', 'Application Status', 'Referred By', 'Comments',
+    'Interview Status', 'Referred By', 'Comments',
     'In Notice', 'Immediate Joiner', 'Offers in Hand', 'Offered CTC',
     'Location Preference', 'Certifications', 'Resume', 'LinkedIn Profile',
     // Stage-specific remarks captured separately in forms/details
     'Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks', 'Final Remarks',
     // General/legacy remarks
-    'Remarks', 'Reject Mail Sent', 'Month Count'
+    'Remarks', 'Reject Mail Sent', 'Month Count', 'Application Status'
 ];
 
 // Predefined dropdown options
@@ -270,7 +270,7 @@ function showCandidateDetails(candidate) {
             
             const label = document.createElement('div');
             label.className = 'text-muted small fw-semibold mb-1';
-            label.textContent = field === 'Timestamp' ? 'Date:' : field + ':';
+            label.textContent = field === 'Date' ? 'Date:' : field + ':';
             
             const value = document.createElement('div');
             value.className = 'candidate-detail-value';
@@ -292,7 +292,7 @@ function showCandidateDetails(candidate) {
                 const date = new Date(candidate[field]);
                 value.textContent = date.toLocaleDateString();
             } else {
-                value.textContent = field === 'Timestamp' && candidate[field] ? new Date(candidate[field]).toLocaleDateString() : candidate[field];
+                value.textContent = field === 'Date' && candidate[field] ? new Date(candidate[field]).toLocaleDateString() : candidate[field];
             }
             
             detailItem.appendChild(label);
@@ -314,8 +314,8 @@ function showCandidateDetails(candidate) {
             
             const value = document.createElement('div');
             value.className = 'candidate-detail-value';
-            // Ensure Timestamp shows only date in remaining fields as well
-            if (field === 'Timestamp' && candidate[field]) {
+            // Ensure Date shows only date in remaining fields as well
+if (field === 'Timestamp' && candidate[field]) {
                 const date = new Date(candidate[field]);
                 value.textContent = date.toLocaleDateString();
             } else {
@@ -374,6 +374,8 @@ function fetchData() {
         .then(response => response.json())
         .then(responseData => {
             const { data, is_admin } = responseData;
+            console.log('API Data:', data);
+            console.log('Is Admin:', is_admin);
             populateTable(data, is_admin);
         })
         .catch(error => {
@@ -396,29 +398,31 @@ function populateTable(data, isAdmin) {
     tableBody.innerHTML = '';
     tableHead.innerHTML = '';
     
-    let columnsToShow = isAdmin ? FIELD_ORDER : ['Name', 'Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks'];
+    let columnsToShow = isAdmin ? FIELD_ORDER : ['Date', 'Name', 'Email ID', 'Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks'];
 
     if (data && data.length > 0) {
         const availableColumns = Object.keys(data[0]);
         const ordered = columnsToShow.filter(c => availableColumns.includes(c));
-        const remaining = availableColumns.filter(c => !ordered.includes(c) && c !== 'Timestamp');
-        const timestampFirst = availableColumns.includes('Timestamp') ? ['Timestamp'] : [];
-        
-        tableColumns = [...timestampFirst, ...ordered, ...remaining];
+        const remaining = availableColumns.filter(c => !ordered.includes(c) && c !== 'Date');
+        const dateFirst = availableColumns.includes('Date') ? ['Date'] : [];
+
+        tableColumns = isAdmin ? [...dateFirst, ...ordered, ...remaining] : columnsToShow;
         
         // Create table header
         const headerRow = document.createElement('tr');
         tableColumns.forEach(column => {
             const th = document.createElement('th');
-            th.textContent = column;
+            th.textContent = column === 'Date' ? 'Date' : column;
             headerRow.appendChild(th);
         });
         
         // Add action column header
-        const actionTh = document.createElement('th');
-        actionTh.textContent = 'Actions';
-        actionTh.style.minWidth = '120px';
-        headerRow.appendChild(actionTh);
+        if (isAdmin) {
+            const actionTh = document.createElement('th');
+            actionTh.textContent = 'Actions';
+            actionTh.style.minWidth = '120px';
+            headerRow.appendChild(actionTh);
+        }
         
         tableHead.appendChild(headerRow);
         
@@ -431,7 +435,7 @@ function populateTable(data, isAdmin) {
             tr.addEventListener('click', (e) => {
                 // Don't trigger if clicking on action buttons or dropdowns
                 if (!e.target.closest('button') && !e.target.closest('select')) {
-                    showCandidateDetails(row);
+                    showCandidateDetails(row, index, isAdmin);
                 }
             });
             
@@ -479,11 +483,11 @@ function populateTable(data, isAdmin) {
 
                     td.appendChild(select);
                 } else if (column === 'Timestamp') {
-                    // Format timestamp to show only date
-                    const timestamp = row[column];
-                    if (timestamp) {
-                        const date = new Date(timestamp);
-                        td.textContent = date.toLocaleDateString();
+                    // Format date to show only date
+                    const dateValue = row[column];
+                    if (dateValue) {
+                        const formattedDate = new Date(dateValue).toLocaleDateString();
+                        td.textContent = formattedDate;
                     } else {
                         td.textContent = '';
                     }
@@ -522,29 +526,19 @@ function populateTable(data, isAdmin) {
                 } else {
                     td.textContent = row[column] || '';
                 }
-                
                 tr.appendChild(td);
             });
-            
-            // Add action buttons
-            const actionTd = document.createElement('td');
-            actionTd.className = 'text-nowrap';
-            
-            const editBtn = document.createElement('button');
-            editBtn.className = 'btn btn-sm btn-primary me-1';
-            editBtn.innerHTML = '<i class="bi bi-pencil"></i> Edit';
-            editBtn.addEventListener('click', () => openEditModal(index, isAdmin));
-            actionTd.appendChild(editBtn);
-            
+
+            // Add action buttons (Edit, Delete)
             if (isAdmin) {
-                const deleteBtn = document.createElement('button');
-                deleteBtn.className = 'btn btn-sm btn-danger';
-                deleteBtn.innerHTML = '<i class="bi bi-trash"></i> Delete';
-                deleteBtn.addEventListener('click', () => deleteRecord(index));
-                actionTd.appendChild(deleteBtn);
+                const actionTd = document.createElement('td');
+                actionTd.innerHTML = `
+                    <button class="btn btn-sm btn-primary edit-btn" data-id="${row.id}" title="Edit"><i class="bi bi-pencil"></i></button>
+                    <button class="btn btn-sm btn-danger delete-btn" data-id="${row.id}" title="Delete"><i class="bi bi-trash"></i></button>
+                `;
+                tr.appendChild(actionTd);
             }
             
-            tr.appendChild(actionTd);
             tableBody.appendChild(tr);
         });
         
@@ -599,7 +593,7 @@ function updateGroupByOptions() {
     groupBySelect.innerHTML = '';
     
     tableColumns.forEach(column => {
-        if (column !== 'Timestamp' && 
+        if (column !== 'Date' && 
             column !== 'Email ID' && 
             column !== 'Contact Number' && 
             column !== 'Current CTC per Annum' && 
@@ -649,7 +643,7 @@ function populateFormFields(formId, data = null) {
     }
     // Create form fields based on FIELD_ORDER (standard layout, no grouped cards)
     FIELD_ORDER.forEach(field => {
-        if (field !== 'Timestamp' && field !== 'Candidate') {
+        if (field !== 'Date' && field !== 'Candidate') {
             const formGroup = document.createElement('div');
             formGroup.className = 'mb-3';
 
@@ -762,13 +756,13 @@ function openAddModal() {
 function openEditModal(index, isAdmin) {
     currentEditIndex = index;
     const record = tableData[index];
-    const modal = new bootstrap.Modal(document.getElementById('editModal'));
+    const modal = new bootstrap.Modal(document.getElementById('editDataModal'));
     const formBody = document.getElementById('editFormBody');
     
     formBody.innerHTML = '';
     
     // Determine which fields to show based on admin status
-    let fieldsToShow = isAdmin ? FIELD_ORDER : ['Name', 'Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks'];
+    let fieldsToShow = isAdmin ? FIELD_ORDER : ['Initial Screening', 'Round 1 Remarks'];
     
     // Create form fields for each column
     fieldsToShow.forEach(column => {
@@ -1344,14 +1338,19 @@ function updateOverallDistributionChart(data) {
     });
 }
 
+document.addEventListener('DOMContentLoaded', () => {
+    refreshData();
+});
+
 // Update the existing refreshData function to include analytics updates
 async function refreshData() {
     try {
         const response = await fetch('/api/data');
         const data = await response.json();
+        console.log('Data refreshed:', data); // Add this line to log the refreshed data
         
         // Update table
-        updateTable(data);
+        populateTable(data.data, data.is_admin);
         
         // Update analytics if on analytics tab
         if (document.getElementById('analysisTab').classList.contains('active')) {
@@ -1367,47 +1366,260 @@ async function refreshData() {
 }
 
 // Update the existing showCandidateDetails function to format dates consistently
-function showCandidateDetails(candidate) {
+function showCandidateDetails(candidate, index, isAdmin) {
     const modal = document.getElementById('candidateDetailModal');
     const content = document.getElementById('candidateDetailContent');
-    
+
     // Format the content with consistent date formatting
     let detailsHTML = '';
-    
+
+    let fieldsToDisplay = isAdmin ? FIELD_ORDER : ['Date', 'Name', 'Email ID', 'Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks'];
+
     // Add primary fields first
-    FIELD_ORDER.forEach(field => {
+    fieldsToDisplay.forEach(field => {
         if (candidate[field] !== undefined) {
             let value = candidate[field];
+            let displayValue = formatFieldValue(field, value);
+            let inputType = 'text'; // Default input type
+
             if (field === 'Timestamp') {
-                value = new Date(value).toLocaleDateString();
+                displayValue = new Date(value).toLocaleDateString();
+                // Date field is not directly editable as a text input in this context,
+                // it's derived from the original data.
+                // For now, we'll keep it as display only.
+                detailsHTML += `
+                    <div class="candidate-detail-item">
+                        <span class="candidate-detail-label">${field}:</span>
+                        <span class="candidate-detail-value">${displayValue}</span>
+                    </div>
+                `;
+            } else {
+                // Determine input type for other fields
+                if (field.includes('CTC') || field.includes('Years') || field.includes('Notice')) {
+                    inputType = 'number';
+                }
+
+                detailsHTML += `
+                    <div class="candidate-detail-item" data-candidate-id="${candidate.id}">
+                        <span class="candidate-detail-label">${field}:</span>
+                        <span class="candidate-detail-value display-mode" id="display-${field.replace(/\s/g, '')}">${displayValue}</span>
+                        <input type="${inputType}" class="form-control edit-mode" id="input-${field.replace(/\s/g, '')}" value="${displayValue}" style="display: none;" ${!isAdmin && !['Initial Screening', 'Round 1 Remarks', 'Remarks'].includes(field) ? 'readonly' : ''}>
+                    </div>
+                `;
             }
-            detailsHTML += `
-                <div class="candidate-detail-item">
-                    <span class="candidate-detail-label">${field === 'Timestamp' ? 'Date' : field}:</span>
-                    <span class="candidate-detail-value">${formatFieldValue(field, value)}</span>
-                </div>
-            `;
         }
     });
-    
-    // Add remaining fields
-    Object.entries(candidate).forEach(([field, value]) => {
-        if (!FIELD_ORDER.includes(field)) {
-            if (field === 'Timestamp') {
-                value = new Date(value).toLocaleDateString();
+
+    // Add remaining fields only if admin
+    if (isAdmin) {
+        Object.entries(candidate).forEach(([field, value]) => {
+            if (!FIELD_ORDER.includes(field) && field !== 'Remarks') { // Exclude Remarks as it's handled separately
+                let displayValue = formatFieldValue(field, value);
+                let inputType = 'text';
+
+                if (field === 'Timestamp') {
+                    displayValue = new Date(value).toLocaleDateString();
+                    detailsHTML += `
+                        <div class="candidate-detail-item" data-candidate-id="${candidate.id}">
+                            <span class="candidate-detail-label">${field}:</span>
+                            <span class="candidate-detail-value">${displayValue}</span>
+                        </div>
+                    `;
+                } else {
+                    detailsHTML += `
+                        <div class="candidate-detail-item">
+                            <span class="candidate-detail-label">${field}:</span>
+                            <span class="candidate-detail-value display-mode" id="display-${field.replace(/\s/g, '')}">${displayValue}</span>
+                            <input type="${inputType}" class="form-control edit-mode" id="input-${field.replace(/\s/g, '')}" value="${displayValue}" style="display: none;">
+                        </div>
+                    `;
+                }
             }
-            detailsHTML += `
-                <div class="candidate-detail-item">
-                    <span class="candidate-detail-label">${field === 'Timestamp' ? 'Date' : field}:</span>
-                    <span class="candidate-detail-value">${formatFieldValue(field, value)}</span>
-                </div>
-            `;
-        }
-    });
-    
+        });
+    }
+
     content.innerHTML = detailsHTML;
+
+    // Add event listeners for inline editing
+    document.querySelectorAll('.candidate-detail-item').forEach(item => {
+        const displaySpan = item.querySelector('.candidate-detail-value');
+        const editInput = item.querySelector('.edit-mode');
+        const fieldName = item.querySelector('.candidate-detail-label').textContent.replace(':', '').trim();
+
+        // Only allow editing for admin or specific fields
+        if (isAdmin || ['Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks'].includes(fieldName)) {
+            displaySpan.addEventListener('click', () => {
+                displaySpan.style.display = 'none';
+                editInput.style.display = 'block';
+                editInput.focus();
+            });
+    
+            editInput.addEventListener('blur', () => {
+                displaySpan.style.display = 'block';
+                editInput.style.display = 'none';
+                displaySpan.textContent = editInput.value;
+    
+                // Implement save logic here
+                const updatedCandidate = {};
+                updatedCandidate[fieldName] = editInput.value;
+                const candidateId = item.dataset.candidateId; // Retrieve candidate ID
+    
+                fetch(`/api/data/${candidateId}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updatedCandidate),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast('Candidate updated successfully!', 'success');
+                        // Optionally, refresh the table data or just update the specific cell
+                    } else {
+                        showToast(`Error updating candidate: ${data.message}`, 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving candidate:', error);
+                    showToast('Error saving candidate.', 'danger');
+                });
+            });
+        }
+    });
+
+    // Add Remarks section
+    const remarksSection = document.createElement('div');
+    remarksSection.className = 'candidate-detail-item';
+    remarksSection.innerHTML = `
+        <span class="candidate-detail-label">Remarks:</span>
+        <textarea id="candidateRemarks" class="form-control edit-mode" rows="3">${candidate.Remarks || ''}</textarea>
+    `;
+    content.appendChild(remarksSection);
+
+    // Get button references
+    const editRemarksBtn = document.getElementById('editRemarksBtn');
+    const saveRemarksBtn = document.getElementById('saveRemarksBtn');
+    const candidateRemarks = document.getElementById('candidateRemarks');
+
+    // Function to toggle edit mode for all fields
+    function toggleEditMode(isEditing, isAdmin) {
+        document.querySelectorAll('.candidate-detail-item').forEach(item => {
+            const displaySpan = item.querySelector('.display-mode');
+            const editInput = item.querySelector('.edit-mode');
+            if (displaySpan && editInput) {
+                const fieldName = editInput.id.replace('input-', '').replace(/([A-Z])/g, ' $1').trim();
+                if (isEditing) {
+                    displaySpan.style.display = 'none';
+                    if (isAdmin || ['Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks'].includes(fieldName)) {
+                        console.log(`Field: ${fieldName}, isAdmin: ${isAdmin}, isEditable: true. Removing readonly.`);
+                        editInput.style.display = 'block';
+                        editInput.removeAttribute('readonly'); // Ensure it's not readonly if it should be editable
+                    } else {
+                        console.log(`Field: ${fieldName}, isAdmin: ${isAdmin}, isEditable: false. Hiding.`);
+                        editInput.style.display = 'none';
+                    }
+                } else {
+                    displaySpan.style.display = 'block';
+                    editInput.style.display = 'none';
+                    displaySpan.textContent = editInput.value;
+                }
+            }
+        });
+
+        // Handle Remarks field separately
+        if (isEditing) {
+            editRemarksBtn.style.display = 'none';
+            saveRemarksBtn.style.display = 'block';
+            if (isAdmin || ['Remarks'].includes('Remarks')) {
+                console.log(`Remarks field, isAdmin: ${isAdmin}, isEditable: true. Removing readonly.`);
+                candidateRemarks.removeAttribute('readonly');
+                candidateRemarks.focus();
+            } else {
+                console.log(`Remarks field, isAdmin: ${isAdmin}, isEditable: false. Setting readonly.`);
+                candidateRemarks.setAttribute('readonly', true);
+            }
+        } else {
+            editRemarksBtn.style.display = 'block';
+            saveRemarksBtn.style.display = 'none';
+            candidateRemarks.setAttribute('readonly', true);
+            // Implement logic to save all updated fields to the backend
+            const updatedCandidate = {};
+            document.querySelectorAll('.edit-mode').forEach(input => {
+                const fieldName = input.id.replace('input-', '').replace(/([A-Z])/g, ' $1').trim(); // Convert 'FieldName' to 'Field Name'
+                updatedCandidate[fieldName] = input.value;
+            });
+            updatedCandidate.Remarks = candidateRemarks.value;
+
+            // Assuming the candidate object passed to showCandidateDetails has an 'originalIndex' or similar identifier
+            // For now, we'll use the index from the global candidates array if available, or pass it from the table click event.
+            // Let's assume for now that `candidate` object has an `id` or `index` property that can be used to identify it.
+            // For this implementation, I'll assume the `candidate` object passed to `showCandidateDetails` has an `index` property.
+            const candidateIndex = index; // This needs to be passed correctly from the table row click
+
+            if (candidateIndex !== undefined) {
+                fetch(`/api/data/${candidateIndex}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(updatedCandidate),
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        showToast('Candidate updated successfully!', 'success');
+                        
+                        bootstrap.Modal.getInstance(modal).hide(); // Close the modal
+                    } else {
+                        showToast(`Error updating candidate: ${data.message}`, 'danger');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error saving candidate:', error);
+                    showToast('Error saving candidate.', 'danger');
+                });
+            } else {
+                console.error('Candidate index not found for saving.');
+                showToast('Error: Candidate index not found.', 'danger');
+            }
+        }
+    }
+
+    // Set initial button state
+    editRemarksBtn.style.display = 'block';
+    saveRemarksBtn.style.display = 'none';
+
+    // Add event listeners for edit and save buttons
+    editRemarksBtn.onclick = () => toggleEditMode(true, isAdmin);
+    saveRemarksBtn.onclick = () => toggleEditMode(false, isAdmin);
+
     const bsModal = new bootstrap.Modal(modal);
     bsModal.show();
+}
+
+// Helper function to show toast notifications
+function showToast(message, type) {
+    const toastContainer = document.createElement('div');
+    toastContainer.className = `toast position-fixed top-0 end-0 m-3 text-white bg-${type} border-0`;
+    toastContainer.role = 'alert';
+    toastContainer.ariaLive = 'assertive';
+    toastContainer.ariaAtomic = 'true';
+    toastContainer.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">
+                ${message}
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    `;
+    document.body.appendChild(toastContainer);
+    const toast = new bootstrap.Toast(toastContainer);
+    toast.show();
+    // Remove toast after it hides
+    toastContainer.addEventListener('hidden.bs.toast', () => {
+        toastContainer.remove();
+    });
 }
 
 // Helper to consistently format field values in candidate details
@@ -1436,4 +1648,3 @@ function formatFieldValue(field, value) {
         return '—';
     }
 }
-

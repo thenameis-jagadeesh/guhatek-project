@@ -23,35 +23,37 @@ ADMIN_PASSWORD = "password123"
 
 # Create sample Excel file if it doesn't exist
 def create_sample_excel():
-    if not os.path.exists(EXCEL_FILE):
-        wb = openpyxl.Workbook()
-        sheet = wb.active
-        sheet.title = SHEET_NAME
-        
-        # Define headers
-        headers = [
-            'Timestamp', 'Name', 'Email ID', 'Contact Number', 'Interested Position', 
-            'Current Role', 'Current Organization', 'Current Location',
-            'Current CTC per Annum', 'Expected CTC per Annum', 'Total Years of Experience',
-            'Notice Period', 'In Notice', 'Immediate Joiner', 'Offers in Hand',
-            'Offered CTC', 'Location Preference', 'Certifications', 'Resume',
-            'LinkedIn Profile', 'Comments', 'Referred By', 'Interview Status',
-            'Application Status',
-            # Stage-specific remarks
-            'Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks',
-            # General remarks
-            'Remarks', 'Reject Mail Sent', 'Final Remarks',
-            'Month Count', 'Reference'
-        ]
-        
-        # Add headers to the first row
-        for col_num, header in enumerate(headers, 1):
-            sheet.cell(row=1, column=col_num).value = header
+    if os.path.exists(EXCEL_FILE):
+        os.remove(EXCEL_FILE)
+
+    wb = openpyxl.Workbook()
+    sheet = wb.active
+    sheet.title = SHEET_NAME
+    
+    # Define headers
+    headers = [
+        'Date', 'Name', 'Email ID', 'Contact Number', 'Interested Position', 
+        'Current Role', 'Current Organization', 'Current Location',
+        'Current CTC per Annum', 'Expected CTC per Annum', 'Total Years of Experience',
+        'Notice Period', 'In Notice', 'Immediate Joiner', 'Offers in Hand',
+        'Offered CTC', 'Location Preference', 'Certifications', 'Resume',
+        'LinkedIn Profile', 'Comments', 'Referred By', 'Interview Status',
+        'Application Status',
+        # Stage-specific remarks
+        'Initial Screening', 'Round 1 Remarks', 'Round 2 Remarks',
+        # General remarks
+        'Remarks', 'Reject Mail Sent', 'Final Remarks',
+        'Month Count', 'Reference'
+    ]
+    
+    # Add headers to the first row
+    for col_num, header in enumerate(headers, 1):
+        sheet.cell(row=1, column=col_num).value = header
         
         # Sample data
         sample_data = [
             {
-                'Timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'Date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'Name': 'John Doe',
                 'Email ID': 'john.doe@example.com',
                 'Contact Number': '9876543210',
@@ -85,7 +87,7 @@ def create_sample_excel():
                 'Reference': 'Jane Smith'
             },
             {
-                'Timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'Date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'Name': 'Jane Smith',
                 'Email ID': 'jane.smith@example.com',
                 'Contact Number': '8765432109',
@@ -119,7 +121,7 @@ def create_sample_excel():
                 'Reference': 'Robert Johnson'
             },
             {
-                'Timestamp': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                'Date': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                 'Email ID': 'sam.wilson@example.com',
                 'Contact Number': '7654321098',
                 'Interested Position': 'UI/UX Designer',
@@ -195,14 +197,26 @@ def load_data():
 def save_data(data):
     if not os.path.exists(EXCEL_FILE):
         create_sample_excel()
-    
+
     wb = openpyxl.load_workbook(EXCEL_FILE)
     sheet = wb[SHEET_NAME]
-    
-    # Get headers from the first row
+
+    # Clear existing data (keep headers)
+    for row in sheet.iter_rows(min_row=2):
+        for cell in row:
+            cell.value = None
+
+    # Write new data
     headers = [cell.value for cell in sheet[1]]
+    for row_num, row_data in enumerate(data, 2):
+        for col_num, header in enumerate(headers, 1):
+            sheet.cell(row=row_num, column=col_num).value = row_data.get(header, '')
+
+    wb.save(EXCEL_FILE)
+    wb.close()
+    print(f"Data saved to Excel: {data}")
     
-    # Desired field order (keep 'Timestamp' at the beginning)
+    # Desired field order (keep 'Date' at the beginning)
     desired_fields = [
         'Name', 'Email ID', 'Contact Number', 'Interested Position', 'Current Role',
         'Current Organization', 'Current Location', 'Current CTC per Annum',
@@ -216,10 +230,10 @@ def save_data(data):
         'Remarks', 'Reject Mail Sent', 'Final Remarks', 'Month Count'
     ]
     
-    # Build ordered headers: Timestamp + desired fields present + any remaining headers
+    # Build ordered headers: Date + desired fields present + any remaining headers
     ordered_headers = []
-    if 'Timestamp' in headers:
-        ordered_headers.append('Timestamp')
+    if 'Date' in headers:
+        ordered_headers.append('Date')
     ordered_headers.extend([h for h in desired_fields if h in headers])
     # Include any headers not in desired list (e.g., 'Reference')
     ordered_headers.extend([h for h in headers if h not in ordered_headers])
@@ -382,7 +396,14 @@ def update_data(index):
         if 0 <= index < len(data):
             # Update the data at the specified index
             for key, value in update_data.items():
-                data[index][key] = value
+                # Convert specific fields to appropriate types if necessary
+                if key in ['Current CTC per Annum', 'Expected CTC per Annum', 'Offered CTC']:
+                    try:
+                        data[index][key] = int(value)
+                    except (ValueError, TypeError):
+                        data[index][key] = value  # Keep original if conversion fails
+                else:
+                    data[index][key] = value
             
             save_data(data)
             return jsonify({"status": "success", "message": "Data updated successfully"})
@@ -581,7 +602,8 @@ def users_page():
     """User management page (admin only)"""
     if not is_admin():
         return redirect(url_for('index'))
-    return render_template('users.html')
+    print(f"isAdmin status before rendering users.html: {is_admin()}")
+    return render_template('users.html', isAdmin=is_admin())
 
 @app.route('/api/users', methods=['GET'])
 @admin_required

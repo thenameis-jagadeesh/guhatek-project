@@ -114,9 +114,11 @@
                             <i class="bi bi-people me-2"></i>
                             User Management
                         </h5>
+                        {% if isAdmin %}
                         <button class="btn btn-light" onclick="openAddUserModal()">
                             <i class="bi bi-plus-circle-fill me-1"></i> Add New User
                         </button>
+                        {% endif %}
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -127,7 +129,9 @@
                                         <th>Username</th>
                                         <th>Role</th>
                                         <th>Created At</th>
-                                        <th>Actions</th>
+                                        {% if isAdmin %}
+                            <th>Actions</th>
+                            {% endif %}
                                     </tr>
                                 </thead>
                                 <tbody id="usersTableBody">
